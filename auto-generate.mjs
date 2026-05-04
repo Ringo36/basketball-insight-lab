@@ -13,7 +13,7 @@ async function callAI(prompt, useWebSearch = false) {
     : undefined;
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 2048,
+    max_tokens: 4096,
     tools,
     messages: [{ role: "user", content: prompt }],
   });
@@ -49,15 +49,15 @@ async function generateArticle(trends) {
 今日のトレンド：${trends.join(" / ")}
 記事タイプ：${type}
 
-以下のJSON形式で記事を生成してください：
+以下のJSON形式のみで返してください。前置きや説明は不要です。
 {
   "title": "記事タイトル（30文字以内）",
   "description": "記事の説明（80文字以内）",
   "category": "カテゴリ名",
-  "content": "記事本文（マークダウン形式・1500文字以上）",
+  "content": "記事本文（マークダウン形式・1000文字以上）",
   "tags": ["タグ1", "タグ2", "タグ3"]
 }
-JSONのみ返してください。最新情報を反映した具体的な内容にしてください。
+JSONのみ返してください。前置きテキストは絶対に含めないでください。
 `;
   const raw = await callAI(prompt, true);
   try {
