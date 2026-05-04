@@ -161,6 +161,10 @@ function getRecentArticleTitles(limit = 10) {
 // ========================================
 async function fetchRealStats() {
   const apiKey = process.env.BALLDONTLIE_API_KEY;
+
+  // デバッグ用ログ
+  console.log(`🔑 APIキー確認: ${apiKey ? apiKey.substring(0, 8) + "..." : "未設定"}`);
+
   if (!apiKey) {
     console.log("⚠️ BALLDONTLIE_API_KEY未設定 - スタッツ取得をスキップ");
     return null;
@@ -174,18 +178,28 @@ async function fetchRealStats() {
   try {
     console.log("📊 Balldontlie APIでリアルスタッツを取得中...");
 
-    // 直近の試合結果を取得（プレーオフ含む）
+    const headers = { "Authorization": apiKey.trim() };
+    console.log(`🔑 送信ヘッダー: Authorization: ${apiKey.trim().substring(0, 8)}...`);
+
     const gamesRes = await fetch(
       "https://api.balldontlie.io/nba/v1/games?per_page=10&seasons[]=2025",
-      { headers: { "Authorization": `${apiKey}` } }
+      { headers }
     );
+
+    console.log(`📡 APIレスポンスステータス: ${gamesRes.status}`);
+
+    if (!gamesRes.ok) {
+      const errText = await gamesRes.text();
+      throw new Error(`API Error ${gamesRes.status}: ${errText}`);
+    }
+
     const gamesData = await gamesRes.json();
     const recentGames = gamesData.data ?? [];
 
     // 直近試合のスタッツを取得
     const statsRes = await fetch(
       "https://api.balldontlie.io/nba/v1/stats?per_page=20&seasons[]=2025",
-      { headers: { "Authorization": `${apiKey}` } }
+      { headers }
     );
     const statsData = await statsRes.json();
     const recentStats = statsData.data ?? [];
