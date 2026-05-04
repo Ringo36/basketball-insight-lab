@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "";
+const GITHUB_TOKEN = process.env.NEXT_PUBLIC_GITHUB_TOKEN ?? "";
 const OWNER = process.env.NEXT_PUBLIC_GITHUB_OWNER ?? "Ringo36";
 const REPO = process.env.NEXT_PUBLIC_GITHUB_REPO ?? "basketball-insight-lab";
 
 export default function AdminPage() {
   const [step, setStep] = useState("login"); // "login" | "panel"
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
   const [loginError, setLoginError] = useState("");
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -18,8 +18,8 @@ export default function AdminPage() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (!password || !token) {
-      setLoginError("パスワードとGitHubトークンを両方入力してください");
+    if (!password) {
+      setLoginError("パスワードを入力してください");
       return;
     }
     if (password !== ADMIN_PASSWORD) {
@@ -36,7 +36,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(
         `https://api.github.com/repos/${OWNER}/${REPO}/contents/content`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${GITHUB_TOKEN}` } }
       );
       if (res.status === 401) throw new Error("GitHubトークンが無効です");
       if (!res.ok) throw new Error(`取得失敗: ${res.status}`);
@@ -52,7 +52,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     if (step === "panel") fetchArticles();
@@ -74,7 +74,7 @@ export default function AdminPage() {
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${GITHUB_TOKEN}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -113,27 +113,11 @@ export default function AdminPage() {
               style={styles.input}
               autoFocus
             />
-            <label style={styles.label}>
-              GitHub Token
-              <span style={styles.hint}>（Contents: read & write 権限が必要）</span>
-            </label>
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              style={styles.input}
-            />
             {loginError && <p style={styles.error}>{loginError}</p>}
             <button type="submit" style={styles.btnPrimary}>
               ログイン
             </button>
           </form>
-          <p style={styles.note}>
-            ※ GitHubトークンはこの画面にのみ保存されます。
-            <br />
-            ページを閉じると破棄されます。
-          </p>
         </div>
       </div>
     );
@@ -158,7 +142,6 @@ export default function AdminPage() {
           <button
             onClick={() => {
               setStep("login");
-              setToken("");
               setArticles([]);
             }}
             style={styles.btnLogout}
@@ -244,11 +227,6 @@ const styles = {
     fontSize: "0.85rem",
     marginTop: "8px",
   },
-  hint: {
-    color: "#666",
-    fontSize: "0.75rem",
-    marginLeft: "8px",
-  },
   input: {
     background: "#111",
     border: "1px solid #444",
@@ -275,12 +253,6 @@ const styles = {
     fontSize: "1rem",
     fontWeight: "600",
     cursor: "pointer",
-  },
-  note: {
-    color: "#666",
-    fontSize: "0.75rem",
-    marginTop: "20px",
-    lineHeight: "1.6",
   },
   panel: {
     minHeight: "100vh",
