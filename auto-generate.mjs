@@ -48,7 +48,11 @@ async function callAI(role, prompt, useWebSearch = false, retries = 2) {
         tools,
         messages: [{ role: "user", content: prompt }],
       });
-      const text = msg.content.find(b => b.type === "text")?.text ?? "";
+      const text = msg.content
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("\n")
+        .trim();
       console.log(`✅ [${role}] 完了`);
       return text;
     } catch (e) {
@@ -75,7 +79,11 @@ async function callAILong(role, prompt, useWebSearch = false) {
         tools,
         messages: [{ role: "user", content: prompt }],
       });
-      const text = msg.content.find(b => b.type === "text")?.text ?? "";
+      const text = msg.content
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("\n")
+        .trim();
       console.log(`✅ [${role}] 完了（${text.length}文字）`);
       return text;
     } catch (e) {
