@@ -61,12 +61,21 @@ JSONのみ返してください。前置きテキストは絶対に含めない�
 `;
   const raw = await callAI(prompt, true);
   try {
-    // JSON部分を抽出して解析
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    // {...}の範囲を抽出
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("JSONが見つかりません");
-    return JSON.parse(jsonMatch[0]);
+    // コードブロックを除去してJSON部分を抽出
+    let cleaned = raw;
+    // ```json ... ``` のコードブロックがあればその中身を取得
+    const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1].trim();
+    }
+    // それでも{から始まらない場合は{以降を抽出
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1) {
+      throw new Error("JSONが見つかりません");
+    }
+    cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    return JSON.parse(cleaned);
   } catch (e) {
     console.error("JSONパース失敗。生のレスポンス:", raw.substring(0, 500));
     throw new Error("記事生成に失敗しました: " + e.message);
