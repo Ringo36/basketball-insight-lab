@@ -467,9 +467,13 @@ ${structure.sections.join("\n")}
 - AIが書いたとわからない自然な文体
 
 重要な制約：
+- スタッツを記載する場合は必ず以下の公式ソースをWeb検索で参照すること：
+  ・stats.nba.com（NBA公式スタッツ）
+  ・ESPN.com/nba
+  ・basketball-reference.com
+- 上記ソースで確認できたスタッツのみ具体的な数値として記載する
+- 確認できなかった場合は数値を使わず「好調を維持している」「高い効率を誇る」などの表現を使う
 - 架空・仮想のスタッツや試合結果を生成してはいけない
-- Balldontlie APIから取得した実際のスタッツのみ数値として記載する
-- 具体的なスタッツが不明な場合は数値を書かず「好調を維持している」「高い効率を誇る」などの表現を使う
 - 「仮想」「架空」「シナリオ」という表現は一切使わない
 - 不確かな情報は「〜とみられる」「〜が予想される」と表現する
 - Web検索で取得した実際の情報のみを使用する
@@ -559,7 +563,7 @@ ${improvements}
 - 1500文字以上を維持
 - 改善された本文のみ出力（前置き不要）`;
 
-    current = await callAILong("執筆AI（リライト）", rewritePrompt);
+    current = await callAILong("執筆AI（リライト）", rewritePrompt, true);
     console.log(`📝 リライト完了: ${current.length}文字`);
   }
 
