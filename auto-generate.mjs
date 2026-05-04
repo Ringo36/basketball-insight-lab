@@ -196,14 +196,6 @@ async function fetchRealStats() {
     const gamesData = await gamesRes.json();
     const recentGames = gamesData.data ?? [];
 
-    // 直近試合のスタッツを取得
-    const statsRes = await fetch(
-      "https://api.balldontlie.io/nba/v1/stats?per_page=20&seasons[]=2025",
-      { headers }
-    );
-    const statsData = await statsRes.json();
-    const recentStats = statsData.data ?? [];
-
     const summary = {
       isOffseason: false,
       recentGames: recentGames.slice(0, 5).map(g => ({
@@ -214,21 +206,10 @@ async function fetchRealStats() {
         visitorScore: g.visitor_team_score,
         status: g.status,
       })),
-      topPerformers: recentStats
-        .filter(s => s.pts >= 20)
-        .slice(0, 5)
-        .map(s => ({
-          player: `${s.player?.first_name} ${s.player?.last_name}`,
-          team: s.team?.full_name,
-          pts: s.pts,
-          reb: s.reb,
-          ast: s.ast,
-          date: s.game?.date,
-        })),
+      topPerformers: [],
     };
 
     console.log(`✅ 直近試合: ${summary.recentGames.length}件`);
-    console.log(`✅ 20得点以上: ${summary.topPerformers.length}件`);
 
     if (summary.recentGames.length === 0) {
       console.log("⚠️ 試合データなし - オフシーズン扱いに切り替え");
@@ -284,12 +265,7 @@ ${realStats.recentGames.map(g =>
   `${g.date}: ${g.homeTeam} ${g.homeScore} - ${g.visitorScore} ${g.visitorTeam}`
 ).join("\n")}
 
-【直近の20得点以上パフォーマンス】
-${realStats.topPerformers.map(p =>
-  `${p.player}（${p.team}）: ${p.pts}得点 ${p.reb}リバウンド ${p.ast}アシスト（${p.date}）`
-).join("\n")}
-
-上記の実際のデータを優先的にトレンド分析に使用してください。
+上記の実際の試合結果を優先的にトレンド分析に使用してください。
 `
     : isOffseason
     ? `
