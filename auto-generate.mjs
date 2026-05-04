@@ -176,7 +176,7 @@ async function fetchRealStats() {
 
     // 直近の試合結果を取得（プレーオフ含む）
     const gamesRes = await fetch(
-      "https://api.balldontlie.io/v1/games?per_page=10&seasons[]=2025",
+      "https://api.balldontlie.io/nba/v1/games?per_page=10&seasons[]=2025",
       { headers: { "Authorization": `${apiKey}` } }
     );
     const gamesData = await gamesRes.json();
@@ -184,7 +184,7 @@ async function fetchRealStats() {
 
     // 直近試合のスタッツを取得
     const statsRes = await fetch(
-      "https://api.balldontlie.io/v1/stats?per_page=20&seasons[]=2025",
+      "https://api.balldontlie.io/nba/v1/stats?per_page=20&seasons[]=2025",
       { headers: { "Authorization": `${apiKey}` } }
     );
     const statsData = await statsRes.json();
