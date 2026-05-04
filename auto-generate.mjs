@@ -226,10 +226,10 @@ async function fetchRealStats() {
 // ========================================
 // STEP1+2: トレンド収集・スコアリング
 // ========================================
-async function fetchSportsTrends(realStats = null) {
+async function fetchSportsTrends() {
   console.log("\n━━━ STEP1: トレンド収集 ━━━");
 
-  const isOffseason = IS_OFFSEASON || realStats?.isOffseason === true;
+  const isOffseason = IS_OFFSEASON;
   const searchQueries = isOffseason ? OFFSEASON_QUERIES : INSEASON_QUERIES;
 
   if (isOffseason) {
@@ -258,17 +258,7 @@ async function fetchSportsTrends(realStats = null) {
   ]);
 
   // スタッツコンテキスト生成
-  const statsContext = (realStats && !realStats.isOffseason)
-    ? `
-【直近の実際の試合結果】
-${realStats.recentGames.map(g =>
-  `${g.date}: ${g.homeTeam} ${g.homeScore} - ${g.visitorScore} ${g.visitorTeam}`
-).join("\n")}
-
-上記の実際の試合結果を優先的にトレンド分析に使用してください。
-`
-    : isOffseason
-    ? `
+  const statsContext = isOffseason ? `
 【オフシーズン中】
 試合データはありません。以下に注目してトレンドを抽出してください：
 - フリーエージェント・移籍情報
@@ -277,8 +267,7 @@ ${realStats.recentGames.map(g =>
 - トレード噂・交渉情報
 - サマーリーグ情報
 - 来シーズン展望・補強ポイント
-`
-    : "";
+` : "";
 
   // 3つの検索結果からトレンドを抽出
   const extractPrompt = `上記の検索結果から今日のNBAで最も話題になっているトピックを5つ抽出してください。スター選手だけでなく、ロールプレーヤー・契約・トレード・戦術・チーム動向なども含めてください。
@@ -619,12 +608,12 @@ async function main() {
   console.log("==================================================");
 
   try {
-    // STEP0: リアルスタッツ取得
+    // STEP0: リアルスタッツ取得（ログ確認用・トレンド判定には使用しない）
     console.log("━━━ STEP0: リアルスタッツ取得 ━━━");
-    const realStats = await fetchRealStats();
+    await fetchRealStats();
 
-    // STEP1+2: トレンド収集・スコアリング
-    const selected = await fetchSportsTrends(realStats);
+    // STEP1+2: トレンド収集・スコアリング（Web検索結果のみで判断）
+    const selected = await fetchSportsTrends();
 
     // STEP3: 構成設計
     const structure = await designArticleStructure(selected.topic, selected.whyHot);
