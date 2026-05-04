@@ -10,6 +10,26 @@ const CURRENT_MONTH = new Date().getMonth() + 1;
 const SITE_DIR = process.cwd();
 const MODEL = "claude-sonnet-4-20250514";
 
+const NBA_TEAMS = [
+  "Boston Celtics", "New York Knicks", "Philadelphia 76ers",
+  "Brooklyn Nets", "Toronto Raptors", "Cleveland Cavaliers",
+  "Chicago Bulls", "Milwaukee Bucks", "Indiana Pacers",
+  "Detroit Pistons", "Miami Heat", "Orlando Magic",
+  "Atlanta Hawks", "Charlotte Hornets", "Washington Wizards",
+  "Oklahoma City Thunder", "Denver Nuggets", "Minnesota Timberwolves",
+  "Golden State Warriors", "Los Angeles Lakers", "Los Angeles Clippers",
+  "Phoenix Suns", "Sacramento Kings", "Portland Trail Blazers",
+  "Utah Jazz", "Dallas Mavericks", "Memphis Grizzlies",
+  "New Orleans Pelicans", "Houston Rockets", "San Antonio Spurs",
+];
+
+const NBA_KEYWORDS = [
+  "contract extension", "trade rumor", "playoff",
+  "rookie", "role player", "stats leader",
+  "injury update", "draft", "G League call-up",
+  "coaching strategy", "salary cap", "free agency",
+];
+
 // ========================================
 // 共通ヘルパー
 // ========================================
@@ -68,10 +88,9 @@ async function callAILong(role, prompt, useWebSearch = false) {
 }
 
 function extractJSON(text) {
-  let cleaned = text
-    .replace(/```json\s*/g, "")
-    .replace(/```\s*/g, "")
-    .trim();
+  // コードブロックがあればその中身を取得
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  let cleaned = codeBlock ? codeBlock[1].trim() : text.trim();
 
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}") + 1;
@@ -122,44 +141,123 @@ function getRecentArticleTitles(limit = 10) {
 // STEP1+2: トレンド収集・スコアリング
 // ========================================
 async function fetchSportsTrends() {
-  console.log("\n━━━ STEP1: トレンド収集（3ソース並行） ━━━");
+  console.log("\n━━━ STEP1: トレンド収集 ━━━");
 
-  const [redditRaw, espnRaw, jpRaw] = await Promise.all([
+  // 3つのクエリで並行Web検索
+  const [news1, news2, news3] = await Promise.all([
     callAI(
-      "Reddit検索",
-      `Search Reddit r/nba for what's trending and most discussed today ${CURRENT_YEAR}. List the top 5 most talked-about topics, players, games, or news stories right now. Return only a numbered list.`,
+      "検索①",
+      `Search for "NBA news today ${CURRENT_YEAR}" and summarize the top NBA stories you find. Return the key headlines and details.`,
       true
     ),
     callAI(
-      "ESPN検索",
-      `Search for the latest NBA news today ${CURRENT_YEAR} from ESPN and Bleacher Report. List the top 5 most important stories, game results, injuries, trades, or developments. Return only a numbered list.`,
+      "検索②",
+      `Search for "site:reddit.com/r/nba hot today" and summarize what topics are hot on r/nba right now. Return the main discussion topics.`,
       true
     ),
     callAI(
-      "日本語検索",
-      `「NBA バスケットボール 最新ニュース 今日 ${CURRENT_YEAR}年${CURRENT_MONTH}月」で検索して、今日のNBAに関する重要な話題を5件リストアップしてください。番号付きリストのみ返してください。`,
+      "検索③",
+      `「NBA 最新ニュース 今日」で検索して、見つかったNBAの最新ニュースをまとめて返してください。`,
       true
     ),
   ]);
 
-  console.log("\n━━━ STEP2: スコアリング・重複チェック ━━━");
+  // 3つの検索結果からトレンドを抽出
+  const extractPrompt = `上記の検索結果から今日のNBAで最も話題になっているトピックを5つ抽出してください。スター選手だけでなく、ロールプレーヤー・契約・トレード・戦術・チーム動向なども含めてください。
+
+以下が3つのWeb検索結果です：
+
+【検索①: NBA news today ${CURRENT_YEAR}】
+${news1}
+
+【検索②: site:reddit.com/r/nba hot today】
+${news2}
+
+【検索③: NBA 最新ニュース 今日】
+${news3}
+
+以下のJSON形式のみで返してください：
+{
+  "trends": [
+    {
+      "topic": "トピック名",
+      "whyHot": "なぜ今日話題なのか",
+      "source": "reddit or ESPN or 日本語メディア"
+    }
+  ],
+  "hasEnoughTrends": true
+}
+トレンドが3件未満または内容が薄い場合は hasEnoughTrends を false にしてください。`;
+
+  const extractText = await callAI("トレンド抽出", extractPrompt);
+  let trendsData = extractJSON(extractText);
+
+  console.log(`📊 取得トレンド数: ${trendsData.trends?.length ?? 0}件 / 十分: ${trendsData.hasEnoughTrends}`);
+
+  // 予備検索（トレンドが不十分な場合）
+  if (!trendsData.hasEnoughTrends || (trendsData.trends?.length ?? 0) < 3) {
+    console.log("⚠️ トレンド不足 → 予備検索を実行");
+
+    const team1 = NBA_TEAMS[Math.floor(Math.random() * NBA_TEAMS.length)];
+    const team2 = NBA_TEAMS[Math.floor(Math.random() * NBA_TEAMS.length)];
+    const kw1 = NBA_KEYWORDS[Math.floor(Math.random() * NBA_KEYWORDS.length)];
+    const kw2 = NBA_KEYWORDS[Math.floor(Math.random() * NBA_KEYWORDS.length)];
+
+    console.log(`🔍 予備検索: [${team1} + ${kw1}] / [${team2} + ${kw2}]`);
+
+    const [backup1, backup2] = await Promise.all([
+      callAI(
+        "予備検索①",
+        `Search for "${team1} NBA ${kw1} ${CURRENT_YEAR}" and summarize what you find.`,
+        true
+      ),
+      callAI(
+        "予備検索②",
+        `Search for "${team2} NBA ${kw2} ${CURRENT_YEAR}" and summarize what you find.`,
+        true
+      ),
+    ]);
+
+    const backupPrompt = `以下の追加検索結果から新しいトピックを抽出し、既存のトレンドリストと合わせて整理してください。
+
+【既存のトレンド】
+${JSON.stringify(trendsData.trends ?? [], null, 2)}
+
+【追加検索①: ${team1} NBA ${kw1} ${CURRENT_YEAR}】
+${backup1}
+
+【追加検索②: ${team2} NBA ${kw2} ${CURRENT_YEAR}】
+${backup2}
+
+合計5件を目標に、以下のJSON形式のみで返してください：
+{
+  "trends": [
+    {
+      "topic": "トピック名",
+      "whyHot": "なぜ今日話題なのか",
+      "source": "reddit or ESPN or 日本語メディア"
+    }
+  ],
+  "hasEnoughTrends": true
+}`;
+
+    const backupText = await callAI("予備トレンド抽出", backupPrompt);
+    trendsData = extractJSON(backupText);
+    console.log(`📊 予備検索後トレンド数: ${trendsData.trends?.length ?? 0}件`);
+  }
+
+  // STEP2: スコアリング・トピック選定
+  console.log("\n━━━ STEP2: スコアリング・トピック選定 ━━━");
 
   const recentArticles = getRecentArticleTitles(10);
   const recentTitlesText = recentArticles.length > 0
     ? recentArticles.map(a => `- ${a.date}: ${a.title}`).join("\n")
     : "（なし）";
 
-  const scoringPrompt = `現在は${CURRENT_YEAR}年${CURRENT_MONTH}月です。
-以下の3ソースから収集したNBAトレンド情報を分析し、記事化する上位トピックを選定してください。
+  const scoringPrompt = `以下のトレンド候補をスコアリングして上位1件を選定してください。
 
-【ソース① Reddit r/nba】
-${redditRaw}
-
-【ソース② ESPN / Bleacher Report】
-${espnRaw}
-
-【ソース③ 日本語ニュース】
-${jpRaw}
+【トレンド候補】
+${JSON.stringify(trendsData.trends ?? [], null, 2)}
 
 【直近10件の公開済み記事（重複チェック用）】
 ${recentTitlesText}
@@ -171,103 +269,94 @@ ${recentTitlesText}
 
 重複ペナルティ：
 - 同じ選手・チーム名が直近3日以内の記事にあれば-30点
-- 直近1日以内にあれば候補から除外（score: 0として選ばない）
+- 直近1日以内にあれば候補から除外（score: 0にして選ばない）
 
 除外するテーマ：ギャンブル・賭博・暴力・私生活スキャンダル
 
-候補を3件スコアリングし、最高スコアを"selected"に設定してください。
-
 以下のJSONのみ出力（説明不要。必ず{から始める）：
-{"candidates":[{"topic":"トピック名","whyHot":"注目理由（1文）","score":85,"penalty":"ペナルティ理由（なければ空文字）"},{"topic":"トピック2","whyHot":"理由","score":75,"penalty":""},{"topic":"トピック3","whyHot":"理由","score":65,"penalty":""}],"selected":{"topic":"最高スコアのトピック名","whyHot":"注目理由（2文）","score":85}}`;
+{"candidates":[{"topic":"トピック名","whyHot":"理由（1文）","score":85,"penalty":"ペナルティ理由（なければ空文字）"},{"topic":"トピック2","whyHot":"理由","score":75,"penalty":""}],"selected":{"topic":"最高スコアのトピック名","whyHot":"注目理由（2文）","score":85}}`;
 
   const scoringText = await callAI("スコアリングAI", scoringPrompt);
-  const result = extractJSON(scoringText);
+  const scoring = extractJSON(scoringText);
 
-  console.log(`📊 候補スコア:`);
-  result.candidates.forEach(c =>
-    console.log(`   ${String(c.score).padStart(3)}点: ${c.topic}${c.penalty ? ` （${c.penalty}）` : ""}`)
+  console.log("📊 候補スコア:");
+  (scoring.candidates ?? []).forEach(c =>
+    console.log(`   ${String(c.score).padStart(3)}点: ${c.topic}${c.penalty ? ` (${c.penalty})` : ""}`)
   );
-  console.log(`🎯 選定: 【${result.selected.topic}】（${result.selected.score}点）`);
+  console.log(`🎯 選定: 【${scoring.selected.topic}】（${scoring.selected.score}点）`);
 
-  return result.selected;
+  return scoring.selected;
 }
 
 // ========================================
 // STEP3: 構成設計
 // ========================================
-async function designArticleStructure(topic) {
+async function designArticleStructure(topic, whyHot) {
   console.log("\n━━━ STEP3: 構成設計 ━━━");
 
   const prompt = `現在は${CURRENT_YEAR}年${CURRENT_MONTH}月です。
 あなたはNBAコアファン向けバスケットボール専門メディアの編集長です。
 以下のトピックで記事構成を設計してください。
 
-トピック: ${topic.topic}
-注目理由: ${topic.whyHot}
+トピック: ${topic}
+注目理由: ${whyHot}
 
 ターゲット：NBAコアファン。専門用語・スタッツ・戦術分析を積極的に使用。過度な説明不要。
+記事はすべて日本語で執筆します。
 
-以下のJSONのみ出力：
+以下のJSON形式のみで返してください：
 {
-  "title": "SEOタイトル（40文字以内・トピックのキーワードを含む）",
-  "description": "meta description（120文字以内・キーワードを自然に含む）",
-  "category": "カテゴリ（NBA／Bリーグ／日本人選手／分析・コラム のいずれか）",
-  "tags": ["タグ1", "タグ2", "タグ3", "タグ4", "タグ5"],
+  "title": "SEOタイトル（40文字以内・日本語・トピックのキーワードを含む）",
+  "description": "meta description（120文字以内・日本語・キーワードを自然に含む）",
+  "sections": ["## 見出し1（キーワード含む）", "## 見出し2", "## 見出し3", "## 見出し4"],
   "points": ["冒頭ポイント1（30文字以内）", "冒頭ポイント2（30文字以内）", "冒頭ポイント3（30文字以内）"],
-  "sections": [
-    {"heading": "## 見出し1（キーワード含む）", "focus": "このセクションで扱う内容（1文）"},
-    {"heading": "## 見出し2", "focus": "内容"},
-    {"heading": "## 見出し3", "focus": "内容"},
-    {"heading": "## 見出し4", "focus": "内容"}
-  ],
-  "summary": "まとめセクションの方向性（1文）"
+  "summary": "まとめセクションの方向性（1文）",
+  "category": "カテゴリ（NBA／Bリーグ／日本人選手／分析・コラム のいずれか）",
+  "tags": ["タグ1", "タグ2", "タグ3"]
 }
-注意：sectionsは4〜5個。pointsは1点30文字以内。`;
+注意：sectionsは4〜5個の文字列配列。`;
 
   const text = await callAI("構成設計AI", prompt);
   const structure = extractJSON(text);
   console.log(`📐 タイトル: ${structure.title}`);
-  console.log(`📋 セクション数: ${structure.sections.length}`);
+  console.log(`📋 セクション数: ${structure.sections?.length ?? 0}`);
   return structure;
 }
 
 // ========================================
 // STEP4: 本文執筆
 // ========================================
-async function writeArticle(topic, structure) {
+async function writeArticle(topic, whyHot, structure) {
   console.log("\n━━━ STEP4: 本文執筆 ━━━");
-
-  const sectionsText = structure.sections
-    .map(s => `${s.heading}\n担当内容: ${s.focus}`)
-    .join("\n\n");
 
   const prompt = `現在は${CURRENT_YEAR}年${CURRENT_MONTH}月です。
 あなたはNBAコアファン向けバスケットボール専門ライターです。
-以下の構成に沿って、NBAコアファンが満足する専門的な記事を執筆してください。
+以下の構成に沿って、NBAコアファンが満足する専門的な記事を日本語で執筆してください。
 
-【トピック】${topic.topic}
-【注目理由】${topic.whyHot}
+【トピック】${topic}
+【注目理由】${whyHot}
 【記事タイトル】${structure.title}
 
-【冒頭ポイント（箇条書きで配置すること）】
+【冒頭に配置するポイント（箇条書き3点）】
 ${structure.points.map(p => `- ${p}`).join("\n")}
 
 【セクション構成】
-${sectionsText}
+${structure.sections.join("\n")}
 
 【まとめの方向性】${structure.summary}
 
 執筆ルール：
+- 記事はすべて日本語で執筆
 - Markdown形式
 - 1500文字以上
 - です・ます調
 - 冒頭に「## この記事のポイント」として上記3点を箇条書きで配置
-- 各セクションを上記見出しで執筆
-- 末尾に「## まとめ」セクションを追加
-- PER・TS%・USG%・WS・BPMなどのアドバンスドスタッツを積極的に使用
+- 上記セクション見出し（H2）に沿って本文を展開
+- 末尾に「## まとめ」セクションを追加（上記まとめ方向性に沿って）
+- PER・TS%・USG%・WS・BPM・ORtg・DRtgなどのアドバンスドスタッツを積極的に活用
 - トレード・サラリーキャップ・バードライツ・ドラフト・PO展望などNBA固有の文脈を盛り込む
 - バスケ用語はカタカナのまま（ファイブアウト・P&R・アイソレーション・スモールボール等）
-- 数字・固有名詞を具体的に記述
+- 具体的な数字・選手名・チーム名を積極的に記述
 - AIが書いたとわからない自然な文体
 
 本文のみ出力（JSONやfrontmatter不要）:`;
@@ -307,7 +396,8 @@ ${current}
     const bd = review.breakdown ?? {};
     console.log(
       `📊 スコア: ${review.score}点` +
-      `（正確性:${bd.accuracy ?? "-"} 専門性:${bd.expertise ?? "-"} 構成:${bd.structure ?? "-"} SEO:${bd.seo ?? "-"}）`
+      `（正確性:${bd.accuracy ?? "-"} 専門性:${bd.expertise ?? "-"}` +
+      ` 構成:${bd.structure ?? "-"} SEO:${bd.seo ?? "-"}）`
     );
 
     if (review.score >= 85) {
@@ -332,7 +422,7 @@ ${current}
       : String(review.improvements);
 
     const rewritePrompt = `あなたはNBAコアファン向けバスケットボール専門ライターです。
-以下の記事を85点レベルに改善してください。
+以下の記事を85点レベルに改善してください。すべて日本語で執筆してください。
 
 【現在の記事】
 ${current}
@@ -341,13 +431,14 @@ ${current}
 ${improvements}
 
 【改善指針】
-1. アドバンスドスタッツ（PER・TS%・USG%・WS・BPM等）を具体的な数値で追加する
-2. 戦術的な分析（オフェンシブレーティング・P&R守備・ゾーン対策等）を深める
+1. アドバンスドスタッツ（PER・TS%・USG%・WS・BPM・ORtg・DRtg等）を具体的な数値で追加する
+2. 戦術的な分析（オフェンシブレーティング・P&R守備・スペーシング・ゾーン対策等）を深める
 3. NBA固有の文脈（サラリーキャップ・バードライツ・トレードデッドライン・PO展望）を強化する
 4. 見出しにキーワードを含める
 5. 冒頭ポイントとまとめを整合させる
 
 【ルール】
+- すべて日本語で執筆
 - です・ます調を維持
 - 1500文字以上を維持
 - 改善された本文のみ出力（前置き不要）`;
@@ -366,7 +457,7 @@ function saveArticle(structure, content, score) {
   const contentDir = path.join(SITE_DIR, "content");
   if (!fs.existsSync(contentDir)) fs.mkdirSync(contentDir, { recursive: true });
 
-  const id = Date.now().toString().slice(-4);
+  const id = Math.floor(1000 + Math.random() * 9000).toString();
   const filename = `${TODAY}-${id}.md`;
   const filepath = path.join(contentDir, filename);
 
@@ -402,16 +493,16 @@ async function main() {
 
   try {
     // STEP1+2: トレンド収集・スコアリング
-    const topic = await fetchSportsTrends();
+    const selected = await fetchSportsTrends();
 
     // STEP3: 構成設計
-    const structure = await designArticleStructure(topic);
+    const structure = await designArticleStructure(selected.topic, selected.whyHot);
 
     // STEP4: 本文執筆
-    const draft = await writeArticle(topic, structure);
+    const draft = await writeArticle(selected.topic, selected.whyHot, structure);
 
     // STEP5: 品質レビュー・リライト
-    const result = await reviewAndRefineArticle(topic, structure, draft);
+    const result = await reviewAndRefineArticle(selected.topic, structure, draft);
 
     // 保存
     console.log("\n━━━ 💾 保存処理 ━━━");
@@ -422,7 +513,7 @@ async function main() {
     console.log("📊 生成レポート");
     console.log("==================================================");
     console.log(`タイトル  : ${structure.title}`);
-    console.log(`トピック  : ${topic.topic}`);
+    console.log(`トピック  : ${selected.topic}`);
     console.log(`スコア    : ${result.score}点`);
     console.log(`ファイル  : ${filename ?? "スキップ"}`);
     console.log("==================================================");
