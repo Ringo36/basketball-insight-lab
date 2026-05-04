@@ -41,12 +41,25 @@ export default function AdminPage() {
       if (res.status === 401) throw new Error("GitHubトークンが無効です");
       if (!res.ok) throw new Error(`取得失敗: ${res.status}`);
       const data = await res.json();
-      const files = Array.isArray(data)
+      const mdFiles = Array.isArray(data)
         ? data
             .filter((f) => f.name.endsWith(".md"))
             .sort((a, b) => b.name.localeCompare(a.name))
         : [];
-      setArticles(files);
+
+      const filesWithTitles = await Promise.all(
+        mdFiles.map(async (file) => {
+          try {
+            const rawRes = await fetch(file.download_url);
+            const text = await rawRes.text();
+            const m = text.match(/^title:\s*"?(.+?)"?\s*$/m);
+            return { ...file, title: m ? m[1] : null };
+          } catch {
+            return { ...file, title: null };
+          }
+        })
+      );
+      setArticles(filesWithTitles);
     } catch (e) {
       setMessage({ text: `❌ ${e.message}`, ok: false });
     } finally {
@@ -167,6 +180,9 @@ export default function AdminPage() {
         {articles.map((article) => (
           <div key={article.sha} style={styles.row}>
             <div style={styles.rowInfo}>
+              {article.title && (
+                <span style={styles.articleTitle}>{article.title}</span>
+              )}
               <span style={styles.filename}>{article.name}</span>
               <a
                 href={`/articles/${article.name.replace(".md", "")}/`}
@@ -335,9 +351,14 @@ const styles = {
     gap: "4px",
     minWidth: 0,
   },
+  articleTitle: {
+    color: "#ffffff",
+    fontSize: "0.95rem",
+    fontWeight: "600",
+  },
   filename: {
-    color: "#eee",
-    fontSize: "0.9rem",
+    color: "#888",
+    fontSize: "0.75rem",
     fontFamily: "monospace",
     wordBreak: "break-all",
   },
