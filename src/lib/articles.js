@@ -27,6 +27,8 @@ export function getAllArticles() {
     .sort((a, b) => new Date(b.date ?? 0) - new Date(a.date ?? 0));
 }
 
+export const getArticles = getAllArticles;
+
 export function getArticlesByCategory(category) {
   return getAllArticles().filter((a) => a.category === category);
 }

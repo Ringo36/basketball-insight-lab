@@ -1,9 +1,11 @@
-import { getArticle, getArticleSlugs, getRelatedArticles } from "../../../lib/articles.js";
+import { getArticle, getArticles, getRelatedArticles } from "../../../lib/articles.js";
 import { marked } from "marked";
 
 export async function generateStaticParams() {
-  const slugs = getArticleSlugs();
-  return slugs.map((slug) => ({ slug }));
+  const articles = getArticles();
+  return articles.map((article) => ({
+    slug: article.slug,
+  }));
 }
 
 export async function generateMetadata({ params }) {
