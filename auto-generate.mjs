@@ -30,24 +30,6 @@ const NBA_KEYWORDS = [
   "coaching strategy", "salary cap", "free agency",
 ];
 
-// NBAシーズンカレンダー（月で判定）
-// 10月〜6月：シーズン中（レギュラー＋プレーオフ）
-// 7月〜9月：オフシーズン
-const IS_OFFSEASON = CURRENT_MONTH >= 7 && CURRENT_MONTH <= 9;
-
-const OFFSEASON_QUERIES = [
-  "NBA free agency news today",
-  "NBA trade rumors today",
-  "NBA draft 2026 news",
-  "NBA summer league news",
-  "NBA contract extension news",
-];
-
-const INSEASON_QUERIES = [
-  "NBA news today 2026",
-  "site:reddit.com/r/nba hot today",
-  "NBA バスケットボール 最新ニュース 今日",
-];
 
 // ========================================
 // 共通ヘルパー
@@ -156,72 +138,6 @@ function getRecentArticleTitles(limit = 10) {
     });
 }
 
-// ========================================
-// STEP0: Balldontlie APIでリアルスタッツ取得
-// ========================================
-async function fetchRealStats() {
-  const apiKey = process.env.BALLDONTLIE_API_KEY;
-
-  // デバッグ用ログ
-  console.log(`🔑 APIキー確認: ${apiKey ? apiKey.substring(0, 8) + "..." : "未設定"}`);
-
-  if (!apiKey) {
-    console.log("⚠️ BALLDONTLIE_API_KEY未設定 - スタッツ取得をスキップ");
-    return null;
-  }
-
-  if (IS_OFFSEASON) {
-    console.log("📅 オフシーズン中 - スタッツ取得をスキップ");
-    return null;
-  }
-
-  try {
-    console.log("📊 Balldontlie APIでリアルスタッツを取得中...");
-
-    const headers = { "Authorization": apiKey.trim() };
-    console.log(`🔑 送信ヘッダー: Authorization: ${apiKey.trim().substring(0, 8)}...`);
-
-    const gamesRes = await fetch(
-      "https://api.balldontlie.io/nba/v1/games?per_page=10&seasons[]=2025",
-      { headers }
-    );
-
-    console.log(`📡 APIレスポンスステータス: ${gamesRes.status}`);
-
-    if (!gamesRes.ok) {
-      const errText = await gamesRes.text();
-      throw new Error(`API Error ${gamesRes.status}: ${errText}`);
-    }
-
-    const gamesData = await gamesRes.json();
-    const recentGames = gamesData.data ?? [];
-
-    const summary = {
-      isOffseason: false,
-      recentGames: recentGames.slice(0, 5).map(g => ({
-        date: g.date,
-        homeTeam: g.home_team?.full_name,
-        homeScore: g.home_team_score,
-        visitorTeam: g.visitor_team?.full_name,
-        visitorScore: g.visitor_team_score,
-        status: g.status,
-      })),
-      topPerformers: [],
-    };
-
-    console.log(`✅ 直近試合: ${summary.recentGames.length}件`);
-
-    if (summary.recentGames.length === 0) {
-      console.log("⚠️ 試合データなし - オフシーズン扱いに切り替え");
-      return { isOffseason: true };
-    }
-
-    return summary;
-  } catch (e) {
-    console.log(`⚠️ Balldontlie API取得失敗: ${e.message} - スキップして続行`);
-    return null;
-  }
-}
 
 // ========================================
 // STEP1+2: トレンド収集・スコアリング
@@ -229,60 +145,39 @@ async function fetchRealStats() {
 async function fetchSportsTrends() {
   console.log("\n━━━ STEP1: トレンド収集 ━━━");
 
-  const isOffseason = IS_OFFSEASON;
-  const searchQueries = isOffseason ? OFFSEASON_QUERIES : INSEASON_QUERIES;
-
-  if (isOffseason) {
-    console.log("📅 オフシーズンモード: 移籍・ドラフト・FA情報を収集");
-  } else {
-    console.log("🏀 シーズンモード: 試合結果・スタッツ情報を収集");
-  }
-
   // 3つのクエリで並行Web検索
   const [news1, news2, news3] = await Promise.all([
     callAI(
       "検索①",
-      `Search for "${searchQueries[0]}" and summarize the top NBA stories you find. Return the key headlines and details.`,
+      `Search for "NBA news today 2026" and summarize the top NBA stories you find. Return the key headlines and details.`,
       true
     ),
     callAI(
       "検索②",
-      `Search for "${searchQueries[1]}" and summarize the results. Return the main topics and stories found.`,
+      `Search for "site:reddit.com/r/nba hot today" and summarize the results. Return the main topics and stories found.`,
       true
     ),
     callAI(
       "検索③",
-      `Search for "${searchQueries[2]}" and summarize the results. Return the key NBA news and topics found.`,
+      `Search for "NBA バスケットボール 最新ニュース 今日" and summarize the results. Return the key NBA news and topics found.`,
       true
     ),
   ]);
-
-  // スタッツコンテキスト生成
-  const statsContext = isOffseason ? `
-【オフシーズン中】
-試合データはありません。以下に注目してトレンドを抽出してください：
-- フリーエージェント・移籍情報
-- ドラフト関連ニュース
-- 契約延長・サイン情報
-- トレード噂・交渉情報
-- サマーリーグ情報
-- 来シーズン展望・補強ポイント
-` : "";
 
   // 3つの検索結果からトレンドを抽出
   const extractPrompt = `上記の検索結果から今日のNBAで最も話題になっているトピックを5つ抽出してください。スター選手だけでなく、ロールプレーヤー・契約・トレード・戦術・チーム動向なども含めてください。
 
 以下が3つのWeb検索結果です：
 
-【検索①: ${searchQueries[0]}】
+【検索①: NBA news today 2026】
 ${news1}
 
-【検索②: ${searchQueries[1]}】
+【検索②: site:reddit.com/r/nba hot today】
 ${news2}
 
-【検索③: ${searchQueries[2]}】
+【検索③: NBA バスケットボール 最新ニュース 今日】
 ${news3}
-${statsContext}
+
 以下のJSON形式のみで返してください：
 {
   "trends": [
@@ -612,11 +507,7 @@ async function main() {
   console.log("==================================================");
 
   try {
-    // STEP0: リアルスタッツ取得（ログ確認用・トレンド判定には使用しない）
-    console.log("━━━ STEP0: リアルスタッツ取得 ━━━");
-    await fetchRealStats();
-
-    // STEP1+2: トレンド収集・スコアリング（Web検索結果のみで判断）
+    // STEP1+2: トレンド収集・スコアリング
     const selected = await fetchSportsTrends();
 
     // STEP3: 構成設計
