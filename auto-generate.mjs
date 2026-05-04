@@ -8,7 +8,7 @@ const TODAY = new Date().toISOString().split("T")[0];
 const CURRENT_YEAR = new Date().getFullYear();
 const CURRENT_MONTH = new Date().getMonth() + 1;
 const SITE_DIR = process.cwd();
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 
 const NBA_TEAMS = [
   "Boston Celtics", "New York Knicks", "Philadelphia 76ers",
