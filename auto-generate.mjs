@@ -61,9 +61,15 @@ JSONのみ返してください。最新情報を反映した具体的な内容�
 `;
   const raw = await callAI(prompt, true);
   try {
-    return JSON.parse(raw.replace(/```json|```/g, "").trim());
-  } catch {
-    throw new Error("記事生成に失敗しました");
+    // JSON部分を抽出して解析
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    // {...}の範囲を抽出
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("JSONが見つかりません");
+    return JSON.parse(jsonMatch[0]);
+  } catch (e) {
+    console.error("JSONパース失敗。生のレスポンス:", raw.substring(0, 500));
+    throw new Error("記事生成に失敗しました: " + e.message);
   }
 }
 
