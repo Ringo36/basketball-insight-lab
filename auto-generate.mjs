@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
@@ -151,21 +151,26 @@ ${fact.searchQuery}
 - basketball-reference.com
 - theathletic.com/nba
 
-Web検索で確認し、以下のJSONのみ出力：
-{"result":"ok","confidence":90,"note":"補足（1文）"}
-result は "ok"（正確）/ "issue"（誤りあり）/ "unverifiable"（確認不可） のいずれか`;
+Web検索で確認後、以下のJSONのみ1行で出力：
+{"claim":"${fact.claim.replace(/"/g, "'")}","status":"confirmed/false/unverifiable","correction":"誤りの場合のみ正しい情報を記載","action":"keep/fix/soften"}
+
+action の意味：
+- keep: 正確なのでそのまま
+- fix: 誤りがあるので正しい情報に修正
+- soften: 確認できないので推量表現に変更`;
 
     try {
       const fc2Text = await callAI(`FC-2 検証AI[${i + 1}]`, fc2Prompt, true);
       const fc2 = extractJSON(fc2Text);
 
-      if (fc2.result === "ok") {
-        console.log(`  ✅ 正確 (信頼度${fc2.confidence}%) ${fc2.note ?? ""}`);
-      } else if (fc2.result === "issue") {
-        console.log(`  ❌ 問題あり: ${fc2.note}`);
-        issues.push({ claim: fact.claim, note: fc2.note });
+      if (fc2.action === "keep") {
+        console.log(`  ✅ 正確`);
+      } else if (fc2.action === "fix") {
+        console.log(`  ❌ 誤りあり: ${fc2.correction ?? ""}`);
+        issues.push(fc2);
       } else {
-        console.log(`  ⚠️ 確認不可: ${fc2.note ?? ""}`);
+        console.log(`  ⚠️ 確認不可 — 推量表現に変更`);
+        issues.push(fc2);
       }
     } catch {
       console.log(`  ⚠️ 検証エラー — スキップ`);
@@ -176,23 +181,27 @@ result は "ok"（正確）/ "issue"（誤りあり）/ "unverifiable"（確認�
   if (issues.length === 0) return article;
 
   console.log("\n━━━ FC-3: 外科的修正 ━━━");
-  const fixPrompt = `あなたはNBAコアファン向けバスケットボール専門ライターです。
-以下の記事の誤りを修正してください。
+  const fixPrompt = `以下の記事の事実誤りを修正してください。
 
-【修正対象の誤り】
-${issues.map((iss, i) => `${i + 1}. 事実: ${iss.claim}\n   問題: ${iss.note}`).join("\n\n")}
-
-【記事全文】
+【元の記事】
 ${article}
 
-修正ルール：
-- 誤りが指摘された箇所のみを最小限修正する
-- 確認できないスタッツは具体的な数値を削除し「好調を維持している」などの表現に変える
-- バスケ用語はカタカナのまま維持（ファイブアウト・P&R・アイソレーション等）
-- です・ます調を維持
-- 修正後の記事全文を出力する`;
+【修正指示】
+${issues.map(i => `
+・対象: ${i.claim}
+・問題: ${i.status === "false" ? "誤り → 正しくは: " + (i.correction ?? "不明") : "確認不可"}
+・対処: ${i.action === "fix" ? "正しい情報に修正" : "「〜とされています」「〜とみられています」に変更"}
+`).join("\n")}
 
-  const fixed = await callAILong("FC-3 修正AI", fixPrompt, true);
+ルール：
+- 指摘箇所のみ最小限修正する
+- 他の箇所は変更しない
+- 記事冒頭に修正内容の説明・注記・免責事項を追加しない
+- です・ます調を維持する
+- バスケ用語はカタカナのまま維持する
+- 修正後の記事全文のみ出力`;
+
+  const fixed = await callAILong("FC-3 修正AI", fixPrompt);
   if (fixed && fixed.length > article.length * 0.7) {
     console.log(`✅ FC-3 修正完了: ${fixed.length}文字`);
     return fixed;
