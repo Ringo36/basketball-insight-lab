@@ -38,6 +38,12 @@ jobs:
           git pull --rebase
           git push
 
+      - name: note原稿を生成
+        timeout-minutes: 10
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node generate-note.mjs
+
       - name: Vercelにデプロイ
         run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
