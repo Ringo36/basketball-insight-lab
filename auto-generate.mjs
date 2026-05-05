@@ -96,6 +96,112 @@ async function callAILong(role, prompt, useWebSearch = false) {
   }
 }
 
+// ========================================
+// ファクトチェック（FC）
+// ========================================
+async function factCheck(article) {
+  console.log("\n━━━ FC-1: 事実リスト抽出 ━━━");
+
+  const fc1Prompt = `以下のNBA・バスケットボール記事から検証が必要な事実を列挙してください。
+
+【記事本文（先頭2000文字）】
+${article.slice(0, 2000)}
+
+検証対象：
+- NBAスタッツ（得点・リバウンド・アシスト・PER・TS%・WS・BPMなど）
+- 選手名・チーム名・ヘッドコーチ名
+- 試合結果・スコア
+- 契約金額・年数・サラリーキャップ数値
+- トレード・ドラフト内容
+- 引用・発言内容
+
+以下のJSONのみ出力：
+{"facts":[{"claim":"検証すべき事実（1文）","searchQuery":"英語検索クエリ"}]}`;
+
+  const fc1Text = await callAI("FC-1 抽出AI", fc1Prompt);
+  let factsData;
+  try {
+    factsData = extractJSON(fc1Text);
+  } catch {
+    console.log("⚠️ FC-1 JSON解析失敗 — ファクトチェックをスキップ");
+    return article;
+  }
+
+  const facts = factsData.facts ?? [];
+  console.log(`📋 検証対象: ${facts.length}件`);
+  if (facts.length === 0) return article;
+
+  console.log("\n━━━ FC-2: 1件ずつWeb検索で検証 ━━━");
+  const issues = [];
+
+  for (const [i, fact] of facts.entries()) {
+    console.log(`🔍 [${i + 1}/${facts.length}] ${fact.claim}`);
+
+    const fc2Prompt = `以下のNBAに関する事実をWeb検索で検証してください。
+
+【検証する事実】
+${fact.claim}
+
+【検索クエリ】
+${fact.searchQuery}
+
+参照すべきソース：
+- stats.nba.com（NBA公式スタッツ）
+- ESPN.com/nba
+- basketball-reference.com
+- theathletic.com/nba
+
+Web検索で確認し、以下のJSONのみ出力：
+{"result":"ok","confidence":90,"note":"補足（1文）"}
+result は "ok"（正確）/ "issue"（誤りあり）/ "unverifiable"（確認不可） のいずれか`;
+
+    try {
+      const fc2Text = await callAI(`FC-2 検証AI[${i + 1}]`, fc2Prompt, true);
+      const fc2 = extractJSON(fc2Text);
+
+      if (fc2.result === "ok") {
+        console.log(`  ✅ 正確 (信頼度${fc2.confidence}%) ${fc2.note ?? ""}`);
+      } else if (fc2.result === "issue") {
+        console.log(`  ❌ 問題あり: ${fc2.note}`);
+        issues.push({ claim: fact.claim, note: fc2.note });
+      } else {
+        console.log(`  ⚠️ 確認不可: ${fc2.note ?? ""}`);
+      }
+    } catch {
+      console.log(`  ⚠️ 検証エラー — スキップ`);
+    }
+  }
+
+  console.log(`\n📊 FC-2 結果: 問題${issues.length}件 / 全${facts.length}件`);
+  if (issues.length === 0) return article;
+
+  console.log("\n━━━ FC-3: 外科的修正 ━━━");
+  const fixPrompt = `あなたはNBAコアファン向けバスケットボール専門ライターです。
+以下の記事の誤りを修正してください。
+
+【修正対象の誤り】
+${issues.map((iss, i) => `${i + 1}. 事実: ${iss.claim}\n   問題: ${iss.note}`).join("\n\n")}
+
+【記事全文】
+${article}
+
+修正ルール：
+- 誤りが指摘された箇所のみを最小限修正する
+- 確認できないスタッツは具体的な数値を削除し「好調を維持している」などの表現に変える
+- バスケ用語はカタカナのまま維持（ファイブアウト・P&R・アイソレーション等）
+- です・ます調を維持
+- 修正後の記事全文を出力する`;
+
+  const fixed = await callAILong("FC-3 修正AI", fixPrompt, true);
+  if (fixed && fixed.length > article.length * 0.7) {
+    console.log(`✅ FC-3 修正完了: ${fixed.length}文字`);
+    return fixed;
+  } else {
+    console.log("⚠️ FC-3 修正結果が不正 — 元の記事を使用");
+    return article;
+  }
+}
+
 function extractJSON(text) {
   // コードブロックがあればその中身を取得
   const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -527,9 +633,13 @@ async function main() {
     // STEP5: 品質レビュー・リライト
     const result = await reviewAndRefineArticle(selected.topic, structure, draft);
 
+    // ファクトチェック
+    console.log("\n━━━ ファクトチェック ━━━");
+    const checkedContent = await factCheck(result.content);
+
     // 保存
     console.log("\n━━━ 💾 保存処理 ━━━");
-    const filename = saveArticle(structure, result.content, result.score);
+    const filename = saveArticle(structure, checkedContent, result.score);
 
     // 最終レポート
     console.log("\n==================================================");
