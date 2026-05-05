@@ -47,20 +47,21 @@ function getLatestArticle() {
 async function generateMeta(freeArticle) {
   console.log("📋 ① メタ情報を生成中...");
   const text = await callClaude(`現在は${CURRENT_YEAR}年${CURRENT_MONTH}月です。
-以下のNBA・バスケットボール無料記事をベースにnote有料記事のメタ情報を生成してください。
+以下のNBA・バスケットボール記事をベースにnote無料記事のメタ情報を生成してください。
 
 タイトル: ${freeArticle.title}
 カテゴリ: ${freeArticle.category}
 概要: ${freeArticle.description}
 
 ルール：
-- NBAコアファン・バスケ好きに刺さる内容にする
-- summaryは本文の予告文を書かない（「この記事では〇〇を紹介します」禁止）
-- summaryはバスケファンの視点・悩み・共感から入る
+- NBAコアファン・バスケ好きに刺さるタイトルにする
+- summaryはバスケファンの興味・共感から入る
+- 無料記事として公開することを前提にする
 - tagsはNBA・バスケ関連のキーワードにする
+- priceは必ず0にする
 
 以下のJSONのみ出力：
-{"noteTitle":"noteタイトル（50文字以内）","summary":"冒頭公開部分（150文字以内・バスケファンへの共感から入る）","price":500,"tags":["タグ1","タグ2","タグ3"]}`, 512);
+{"noteTitle":"noteタイトル（50文字以内）","summary":"冒頭文（150文字以内・バスケファンへの共感から入る）","price":0,"tags":["タグ1","タグ2","タグ3"]}`, 512);
   return extractJSON(text);
 }
 
@@ -124,6 +125,8 @@ ${section.keyPoints.map(p => `- ${p}`).join("\n")}
 - です・ます調
 - 600〜800文字
 - ${section.title} の見出しから始める
+- 記事末尾に以下の誘導文を必ず含める：
+  「より詳しい分析・最新情報はこちら → https://basketball.trend-insightlab.com」
 - 本文のみ出力`;
 
     const sectionText = await callClaude(prompt, 1024);
@@ -214,17 +217,17 @@ ${content}
 
 評価基準（各項目を個別採点してから合計）：
 
-1. 推論・分析の深さ（30点）
-   - スタッツ・戦術・契約などの深い洞察があるか
-   - NBAコアファンが「なるほど」と思う発見があるか
+1. 集客力・タイトルの魅力（30点）
+   - NBAファンがクリックしたくなるか
+   - noteで拡散されやすい内容か
 
 2. 一貫性・文脈の流れ（25点）
    - セクション間が自然につながっているか
    - 冒頭と結論が対応しているか
 
-3. 読者価値（25点）
-   - NBAコアファンが¥500払う価値があるか
-   - 読後に新たな視点が得られるか
+3. サイト誘導効果（25点）
+   - 記事を読んだ後にサイトを訪問したくなるか
+   - 続きを読みたくなる余白があるか
 
 4. 文章品質（20点）
    - 読みやすいか
@@ -259,14 +262,15 @@ qualityScore: ${scoreResult.score}
 noteUrl: ""
 ---
 
-## 【冒頭・無料公開部分】
-
 ${meta.summary}
 
----
-※ここから有料部分です
-
 ${content}
+
+---
+
+🏀 **NBA・バスケ最新情報はこちら**
+より詳しい分析・速報記事を毎日更新中です。
+👉 https://basketball.trend-insightlab.com
 `;
 
   fs.writeFileSync(filepath, fileContent, "utf8");
