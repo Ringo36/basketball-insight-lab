@@ -171,28 +171,34 @@ async function fixConsistency(content, review) {
     return content;
   }
 
-  console.log(`🔄 ⑤ 外科的修正中（${review.issues.length}件）...`);
+  console.log(`🔄 ⑤ 外科的修正中（${review.issues.length}件・2件ずつ処理）...`);
+
   let fixedContent = content;
 
-  for (const [index, issue] of review.issues.entries()) {
-    console.log(`   修正${index + 1}/${review.issues.length}: ${issue.location}`);
+  // 2件ずつまとめて処理
+  for (let i = 0; i < review.issues.length; i += 2) {
+    const batch = review.issues.slice(i, i + 2);
+    console.log(`   修正 ${i + 1}〜${Math.min(i + 2, review.issues.length)}/${review.issues.length}件目`);
 
-    const prompt = `以下のnote記事の特定箇所のみを修正してください。
-
-【修正対象の問題】
-場所: ${issue.location}
-問題: ${issue.problem}
-修正方法: ${issue.fix}
+    const prompt = `以下のnote記事の問題箇所を修正してください。
 
 【記事全文】
 ${fixedContent}
 
+【修正指示（${batch.length}件）】
+${batch.map((issue, idx) => `
+修正${idx + 1}：
+場所: ${issue.location}
+問題: ${issue.problem}
+修正方法: ${issue.fix}
+`).join("\n")}
+
 ルール：
-- 指摘された箇所のみを最小限修正する
+- 指摘された箇所のみ最小限修正する
 - 他の箇所は一切変更しない
 - 文字数を減らさない
 - です・ます調を維持する
-- 修正後の記事全文を出力する`;
+- 修正後の記事全文のみ出力`;
 
     const fixed = await callClaude(prompt, 8192);
     if (fixed && fixed.length > fixedContent.length * 0.8) {

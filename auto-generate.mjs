@@ -502,7 +502,7 @@ async function reviewAndRefineArticle(topic, structure, content) {
   console.log("\n━━━ STEP5: 品質レビュー・リライト ━━━");
 
   let current = content;
-  const maxAttempts = 3;
+  const maxAttempts = 2;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const reviewPrompt = `あなたはNBAコアファン向け専門メディアの編集長です。
