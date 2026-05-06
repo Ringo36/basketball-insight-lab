@@ -23,7 +23,7 @@ jobs:
         run: npm install
 
       - name: バスケ記事を自動生成
-        timeout-minutes: 20
+        timeout-minutes: 40
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SITE: sports
