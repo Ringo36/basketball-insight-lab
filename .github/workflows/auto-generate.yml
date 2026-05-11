@@ -2,50 +2,34 @@ name: バスケ記事自動生成
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # 毎日JST 18:00
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GIT_TOKEN_ADMIN }}
 
-      - name: Node.jsをセットアップ
-        uses: actions/setup-node@v4
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: '3.11'
 
       - name: 依存パッケージをインストール
-        run: npm install
+        run: pip install -r requirements.txt
 
       - name: バスケ記事を自動生成
-        timeout-minutes: 40
+        timeout-minutes: 38
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SITE: sports
-        run: node auto-generate.mjs
-
-      - name: 記事をコミット
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add content/
-          git diff --staged --quiet || git commit -m "auto: バスケ記事を生成 $(date +'%Y-%m-%d')"
-          git pull --rebase
-          git push
-
-      - name: note原稿を生成
-        timeout-minutes: 10
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: node generate-note.mjs
-
-      - name: Vercelにデプロイ
-        run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+          RAKUTEN_AFI_ID: ${{ secrets.RAKUTEN_AFI_ID }}
+          GIT_TOKEN_ADMIN: ${{ secrets.GIT_TOKEN_ADMIN }}
+          BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
+          PYTHONUTF8: "1"
+        run: python auto_generate.py
