@@ -850,7 +850,9 @@ NBAコアファン向けnote無料記事のセクションを執筆してくだ�
         print(f"🔄 ⑤ 外科的修正中（{len(batch)}件バッチ）...")
 
         fix_instructions = "\n".join([
-            f"・場所: {i['location']}\n  問題: {i['problem']}\n  修正方法: {i['fix']}"
+            f"・場所: {i.get('location', '不明')}\n"
+            f"  問題: {i.get('problem', i.get('issue', '内容不明'))}\n"
+            f"  修正方法: {i.get('fix', i.get('solution', '改善してください'))}"
             for i in batch
         ])
 
