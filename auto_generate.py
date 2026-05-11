@@ -123,6 +123,42 @@ def call_ai_long(role: str, prompt: str,
     raise RuntimeError(f"[{role}] 全試行失敗")
 
 
+def call_ai_long_safe(role: str, prompt: str,
+                      model: str = MODEL_HEAVY,
+                      use_web: bool = False) -> str:
+    """途中切れチェック付きの長文生成"""
+    for attempt in range(1, 3):
+        text = call_ai_long(role, prompt, model=model, use_web=use_web)
+
+        stripped = text.strip()
+        ends_ok = any([
+            "まとめ" in stripped[-200:],
+            stripped.endswith("。"),
+            stripped.endswith("！"),
+            stripped.endswith("？"),
+            stripped.endswith("✅"),
+            len(stripped) >= 1200
+        ])
+
+        if ends_ok:
+            return text
+
+        print(f"⚠️ [{role}] 途中切れ検出（{len(stripped)}文字）→ 補完リトライ")
+        prompt = f"""以下の記事は途中で切れています。
+「## まとめ」セクションを含む続きを書いてください。
+
+【途中までの記事】
+{stripped}
+
+続きのみ出力してください。"""
+        continuation = call_ai_long(
+            f"{role}（補完）", prompt, model=model, use_web=False
+        )
+        return stripped + "\n\n" + continuation.strip()
+
+    return text
+
+
 # ========================================
 # STEP1: トレンド収集
 # ========================================
@@ -372,7 +408,7 @@ def write_article(topic: str, why_hot: str, structure: dict) -> str:
     points_md = "\n".join([f"- {p}" for p in structure.get("points", [])])
     sections_md = "\n".join([f"- {s}" for s in structure.get("sections", [])])
 
-    content = call_ai_long(
+    content = call_ai_long_safe(
         "執筆AI",
         f"""現在は{CURRENT_YEAR}年{CURRENT_MONTH}月です。
 あなたはNBAコアファン向けバスケットボール専門ライターです。
@@ -420,8 +456,11 @@ markdown形式で本文のみ出力してください。""",
 # STEP5: 品質レビュー・リライト
 # ========================================
 def review_and_refine(topic: str, structure: dict, content: str) -> dict:
-    """85点以上になるまで最大3回リライト"""
+    """85点以上になるまで最大3回リライト（ベストスコア管理付き）"""
     print("\n━━━ STEP5: 品質レビュー・リライト ━━━")
+
+    best_content = content
+    best_score = 0
 
     for attempt in range(1, 4):
         result = call_ai(
@@ -461,13 +500,17 @@ def review_and_refine(topic: str, structure: dict, content: str) -> dict:
               f"構成:{result.get('structure', 0)} "
               f"SEO:{result.get('seo', 0)}）")
 
+        if score > best_score:
+            best_score = score
+            best_content = content
+
         if score >= 85:
             print("✅ 85点以上達成・確定")
-            return {"content": content, "score": score}
+            return {"content": best_content, "score": best_score}
 
         if attempt < 3:
             print(f"🔄 リライト {attempt}回目...")
-            content = call_ai_long(
+            content = call_ai_long_safe(
                 "執筆AI（リライト）",
                 f"""以下の記事を改善してください。
 
@@ -475,20 +518,21 @@ def review_and_refine(topic: str, structure: dict, content: str) -> dict:
 {result.get('feedback', '専門性と具体性を高めてください')}
 
 【元の記事】
-{content}
+{best_content}
 
 改善ルール：
 - NBAコアファン向けの深い分析・スタッツ・戦術を追加
 - stats.nba.com・ESPN等で確認できたスタッツのみ数値として記載
 - 架空スタッツは絶対に使わない
 - 1500文字以上を維持
+- ## まとめ セクションを必ず末尾に配置
 - markdown形式で本文のみ出力""",
                 model=MODEL_HEAVY,
                 use_web=True
             )
 
-    print(f"⚠️ 最大リライト回数到達（{score}点）")
-    return {"content": content, "score": score}
+    print(f"⚠️ 最大リライト回数到達（{best_score}点）")
+    return {"content": best_content, "score": best_score}
 
 
 # ========================================
@@ -513,7 +557,11 @@ def fact_check(article: str) -> str:
 - 試合結果・スコア・日付
 - 契約金額・契約年数
 - 移籍・トレード情報
-- 発言の引用""",
+- 発言の引用
+
+必ず最低1件以上の検証対象を抽出してください。
+スタッツ・選手名・チーム名・日付・スコアなど
+具体的な情報が1つでもあれば検証対象として抽出してください。""",
         schema={
             "type": "object",
             "properties": {
@@ -526,7 +574,8 @@ def fact_check(article: str) -> str:
                             "searchQuery": {"type": "string"}
                         },
                         "required": ["claim", "searchQuery"]
-                    }
+                    },
+                    "minItems": 1
                 }
             },
             "required": ["facts"]
