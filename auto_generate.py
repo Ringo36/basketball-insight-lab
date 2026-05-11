@@ -546,22 +546,21 @@ def fact_check(article: str) -> str:
     print("\n━━━ FC-1: 事実リスト抽出 ━━━")
     result = call_ai(
         "FC-1 事実リストアップAI",
-        f"""以下のNBA・バスケットボール記事から検証が必要な事実をリストアップしてください。
+        f"""以下のNBA・バスケットボール記事から検証が必要な事実を
+必ず最低3件以上リストアップしてください。
 
 【記事全文】
 {article}
 
-対象：
-- 具体的なスタッツ・数字・パーセンテージ
-- 選手名・チーム名・コーチ名
-- 試合結果・スコア・日付
-- 契約金額・契約年数
-- 移籍・トレード情報
-- 発言の引用
+以下は必ず検証対象として抽出してください：
+- 選手名・チーム名・コーチ名（実在するか）
+- 試合スコア・日付・シリーズ状況
+- 具体的なスタッツ（得点・リバウンド・アシスト等）
+- 契約金額・年数・移籍情報
+- プレーオフの勝敗・順位情報
 
-必ず最低1件以上の検証対象を抽出してください。
-スタッツ・選手名・チーム名・日付・スコアなど
-具体的な情報が1つでもあれば検証対象として抽出してください。""",
+上記の情報が記事に1件でも含まれていれば必ず抽出してください。
+「検証すべき事実なし」は不可です。""",
         schema={
             "type": "object",
             "properties": {
@@ -575,7 +574,7 @@ def fact_check(article: str) -> str:
                         },
                         "required": ["claim", "searchQuery"]
                     },
-                    "minItems": 1
+                    "minItems": 3
                 }
             },
             "required": ["facts"]
@@ -820,7 +819,7 @@ def generate_note(article_path: str) -> dict:
 
     for i, section in enumerate(sections):
         print(f"   セクション{i+1}/{len(sections)}: {section.get('title', '')}")
-        text = call_ai_long(
+        text = call_ai_long_safe(
             f"note 執筆AI[{i+1}]",
             f"""現在は{CURRENT_YEAR}年{CURRENT_MONTH}月です。
 NBAコアファン向けnote無料記事のセクションを執筆してください。
@@ -905,7 +904,7 @@ NBAコアファン向けnote無料記事のセクションを執筆してくだ�
             for i in batch
         ])
 
-        fixed = call_ai_long(
+        fixed = call_ai_long_safe(
             "note 修正AI",
             f"""以下のnote記事の特定箇所のみを修正してください。
 
