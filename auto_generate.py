@@ -15,8 +15,6 @@ CONTENT_NOTE_DIR = Path("content-note")
 HISTORY_DIR = Path("history")
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-RAKUTEN_APP_ID = os.environ.get("RAKUTEN_APP_ID", "")
-RAKUTEN_AFI_ID = os.environ.get("RAKUTEN_AFI_ID", "")
 
 NBA_TEAMS = [
     "Boston Celtics", "New York Knicks", "Philadelphia 76ers",
@@ -630,46 +628,9 @@ NBA公式・ESPN・Basketball Reference・The Athleticなどを参照して検�
 
 
 # ========================================
-# 楽天アフィリエイト
-# ========================================
-def fetch_rakuten_products(keyword: str) -> list:
-    """楽天APIでバスケ用品を検索"""
-    if not RAKUTEN_APP_ID:
-        return []
-    try:
-        params = {
-            "applicationId": RAKUTEN_APP_ID,
-            "affiliateId": RAKUTEN_AFI_ID,
-            "keyword": keyword,
-            "hits": 3,
-            "sort": "-reviewCount",
-            "genreId": "567944"  # バスケットボールカテゴリ
-        }
-        res = requests.get(
-            "https://app.rakuten.co.jp/services/api/IchibaItem/Search/20170706",
-            params=params,
-            timeout=10
-        )
-        items = res.json().get("Items", [])
-        return [
-            {
-                "name": item["Item"]["itemName"][:50],
-                "url": item["Item"]["affiliateUrl"] or item["Item"]["itemUrl"],
-                "price": item["Item"]["itemPrice"],
-                "description": item["Item"].get("itemCaption", "")[:100]
-            }
-            for item in items[:3]
-        ]
-    except Exception as e:
-        print(f"⚠️ 楽天API失敗: {e}")
-        return []
-
-
-# ========================================
 # 記事保存
 # ========================================
-def save_article(structure: dict, content: str,
-                 score: int, products: list) -> str:
+def save_article(structure: dict, content: str, score: int) -> str:
     """記事をmarkdownで保存"""
     CONTENT_DIR.mkdir(exist_ok=True)
 
@@ -680,12 +641,6 @@ def save_article(structure: dict, content: str,
     if filepath.exists():
         print(f"⚠️ 既に存在: {filename} — スキップ")
         return None
-
-    affiliate_md = ""
-    if products:
-        affiliate_md = "\n\n## おすすめバスケ用品\n\n"
-        for p in products:
-            affiliate_md += f"- [{p['name']}]({p['url']}) — ¥{p['price']:,}\n"
 
     tags_yaml = json.dumps(structure.get("tags", []), ensure_ascii=False)
 
@@ -699,7 +654,7 @@ site: "sports"
 qualityScore: {score}
 ---
 
-{content}{affiliate_md}
+{content}
 """
 
     filepath.write_text(md, encoding="utf-8")
@@ -1069,15 +1024,10 @@ def main():
     # STEP6: ファクトチェック
     checked_content = fact_check(refined["content"])
 
-    # 楽天アフィリエイト
-    products = fetch_rakuten_products(
-        structure.get("category", "バスケットボール")
-    )
-
     # 保存
     print("\n━━━ 💾 保存処理 ━━━")
     filename = save_article(
-        structure, checked_content, refined["score"], products
+        structure, checked_content, refined["score"]
     )
 
     if filename:

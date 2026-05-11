@@ -27,8 +27,6 @@ jobs:
         timeout-minutes: 38
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
-          RAKUTEN_AFI_ID: ${{ secrets.RAKUTEN_AFI_ID }}
           GIT_TOKEN_ADMIN: ${{ secrets.GIT_TOKEN_ADMIN }}
           BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
           PYTHONUTF8: "1"
