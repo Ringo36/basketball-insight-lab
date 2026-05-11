@@ -159,6 +159,46 @@ def call_ai_long_safe(role: str, prompt: str,
     return text
 
 
+def sanitize_article(text: str) -> str:
+    """記事本文から思考過程・前置きを除去"""
+    import re
+
+    patterns = [
+        r"I[''']ll need to verify[^.]*\.[^.]*\.",
+        r"I need to verify[^.]*\.[^.]*\.",
+        r"Let me search[^.]*\.[^.]*\.",
+        r"Let me check[^.]*\.[^.]*\.",
+        r"Let me also[^.]*\.[^.]*\.",
+        r"Now let me search[^.]*\.[^.]*\.",
+        r"Now I have[^.]*\.[^.]*\.",
+        r"Let me write[^.]*\.",
+        r"Let me compile[^.]*\.",
+        r"Based on my research[^.]*:?",
+        r"I can now see[^.]*:?",
+    ]
+
+    for pattern in patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    jp_patterns = [
+        r"まず、改善指示を確認し[^。]*。[^。]*。",
+        r"必要な情報を調査します[^。]*。",
+        r"以下の点を確認する必要があります[^。]*。",
+        r"^\d+\.\s*OKCサンダー[^\n]*\n",
+    ]
+
+    for pattern in jp_patterns:
+        text = re.sub(pattern, "", text, flags=re.MULTILINE)
+
+    match = re.search(r"^##\s", text, re.MULTILINE)
+    if match:
+        text = text[match.start():]
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
 # ========================================
 # STEP1: トレンド収集
 # ========================================
@@ -443,13 +483,20 @@ def write_article(topic: str, why_hot: str, structure: dict) -> str:
 - 「仮想」「架空」「シナリオ」という表現は一切使わない
 - 不確かな情報は「〜とみられる」「〜が予想される」と表現する
 
-markdown形式で本文のみ出力してください。""",
+【絶対遵守ルール】
+- 「I need to verify」「Let me search」「Now I have」など英語の思考プロセスを記事内に含めてはいけません
+- 「まず、改善指示を確認し」「必要な情報を調査します」など記事執筆前の前置き・準備の文章を含めてはいけません
+- 「以下のJSON形式で」「指示通り」など指示文への言及禁止
+- 検索ログ・思考過程・修正の説明を出力に含めてはいけません
+- 「Let me write the improved article now」のような執筆宣言を含めてはいけません
+- 出力は記事本文のみ（##見出しから始まる純粋なmarkdown）
+- 英文混入を絶対に避ける""",
         model=MODEL_HEAVY,
         use_web=True
     )
 
     print(f"📝 本文生成完了: {len(content)}文字")
-    return content
+    return sanitize_article(content)
 
 
 # ========================================
@@ -526,13 +573,23 @@ def review_and_refine(topic: str, structure: dict, content: str) -> dict:
 - 架空スタッツは絶対に使わない
 - 1500文字以上を維持
 - ## まとめ セクションを必ず末尾に配置
-- markdown形式で本文のみ出力""",
+- markdown形式で本文のみ出力
+
+【絶対遵守ルール】
+- 「I need to verify」「Let me search」「Now I have」など英語の思考プロセスを記事内に含めてはいけません
+- 「まず、改善指示を確認し」「必要な情報を調査します」など記事執筆前の前置き・準備の文章を含めてはいけません
+- 「以下のJSON形式で」「指示通り」など指示文への言及禁止
+- 検索ログ・思考過程・修正の説明を出力に含めてはいけません
+- 「Let me write the improved article now」のような執筆宣言を含めてはいけません
+- 出力は記事本文のみ（##見出しから始まる純粋なmarkdown）
+- 英文混入を絶対に避ける""",
                 model=MODEL_HEAVY,
                 use_web=True
             )
+            content = sanitize_article(content)
 
     print(f"⚠️ 最大リライト回数到達（{best_score}点）")
-    return {"content": best_content, "score": best_score}
+    return {"content": sanitize_article(best_content), "score": best_score}
 
 
 # ========================================
@@ -665,14 +722,20 @@ NBA公式・ESPN・Basketball Reference・The Athleticなどを参照して検�
 - 記事冒頭に修正内容の説明・注記・免責事項を追加しない
 - です・ます調を維持する
 - バスケ用語はカタカナのまま維持する
-- 修正後の記事全文のみ出力""",
+- 修正後の記事全文のみ出力
+
+【絶対遵守ルール】
+- 「I need to verify」「Let me check」など英語の思考過程禁止
+- 「Based on my research」「Now I have」などの確認文禁止
+- 記事冒頭に修正内容の説明・注記・免責事項を追加しない
+- 出力は修正後の記事本文のみ（純粋なmarkdown）""",
         model=MODEL_HEAVY
     )
 
     if fixed and len(fixed) > len(article) * 0.7:
         print(f"✅ FC-3 修正完了: {len(fixed)}文字")
-        return fixed
-    return article
+        return sanitize_article(fixed)
+    return sanitize_article(article)
 
 
 # ========================================
