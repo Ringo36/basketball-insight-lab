@@ -254,7 +254,8 @@ NBAおよびバスケットボールの今日の最新トレンドを以下の3�
                         },
                         "required": ["topic", "whyHot", "source"]
                     },
-                    "minItems": 1
+                    "minItems": 1,
+                    "maxItems": 10
                 },
                 "hasEnoughTrends": {"type": "boolean"}
             },
@@ -321,18 +322,22 @@ def score_trends(trends: list, recent_titles: list) -> dict:
 以下のNBAトレンド候補をスコアリングして最適なトピックを1件選定してください。
 
 【トレンド候補】
-{json.dumps(trends, ensure_ascii=False, indent=2)}
+{json.dumps(trends[:10], ensure_ascii=False, indent=2)}
 
 【直近の公開記事（重複チェック用）】
 {recent_context}
 
-スコアリング基準：
-- 鮮度（直近24時間以内か）: 最大40点
-- 話題性（複数ソースで言及されているか）: 最大35点
-- NBA的重要度（スタッツ・戦術・契約・トレード・PO展望など）: 最大25点
-- 重複ペナルティ: 同じ選手・チーム名が直近3日以内にあれば-30点、直近1日以内なら除外（score=0）
+スコアリング基準（各候補について簡潔に計算）：
+- 鮮度: 最大40点
+- 話題性: 最大35点
+- 重要度: 最大25点
+- 重複ペナルティ: 3日以内なら-30点、1日以内なら除外
 
-各候補のスコアとペナルティを明示し、最高スコアのトピックを選定してください。""",
+【絶対遵守ルール】
+- penaltyフィールドは40文字以内に簡潔にまとめる
+- topicフィールドは50文字以内
+- 長文の計算過程をpenaltyに書かない（例：「3日以内重複-30点」のみ）
+- 必ずselectedフィールドを含める""",
         schema={
             "type": "object",
             "properties": {
@@ -341,18 +346,20 @@ def score_trends(trends: list, recent_titles: list) -> dict:
                     "items": {
                         "type": "object",
                         "properties": {
-                            "topic": {"type": "string"},
+                            "topic": {"type": "string", "maxLength": 80},
                             "score": {"type": "integer"},
-                            "penalty": {"type": "string"}
+                            "penalty": {"type": "string", "maxLength": 80}
                         },
                         "required": ["topic", "score"]
-                    }
+                    },
+                    "minItems": 3,
+                    "maxItems": 10
                 },
                 "selected": {
                     "type": "object",
                     "properties": {
-                        "topic": {"type": "string"},
-                        "whyHot": {"type": "string"},
+                        "topic": {"type": "string", "maxLength": 80},
+                        "whyHot": {"type": "string", "maxLength": 200},
                         "score": {"type": "integer"}
                     },
                     "required": ["topic", "whyHot", "score"]
@@ -365,6 +372,23 @@ def score_trends(trends: list, recent_titles: list) -> dict:
     for c in result.get("candidates", []):
         penalty = f" ({c.get('penalty', '')})" if c.get("penalty") else ""
         print(f"  {c['score']:4d}点: {c['topic'][:40]}{penalty}")
+
+    if "selected" not in result:
+        print("⚠️ selectedフィールドが欠落 — candidatesから最高スコアを抽出")
+        candidates = result.get("candidates", [])
+        if not candidates:
+            print("❌ candidatesも空 — トレンドの先頭を使用")
+            return {
+                "topic": trends[0].get("topic", "NBA最新ニュース"),
+                "whyHot": trends[0].get("whyHot", ""),
+                "score": 50
+            }
+        best = max(candidates, key=lambda x: x.get("score", 0))
+        return {
+            "topic": best["topic"],
+            "whyHot": best.get("penalty", ""),
+            "score": best.get("score", 50)
+        }
 
     selected = result["selected"]
     print(f"🎯 選定: 【{selected['topic']}】（{selected['score']}点）")
