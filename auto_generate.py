@@ -664,11 +664,36 @@ def fact_check(article: str) -> str:
     )
 
     facts = result.get("facts", [])
+
+    # デバッグ出力
+    print(f"🔍 FC-1取得データ型: {type(facts).__name__}")
+    if facts:
+        print(f"🔍 最初の要素型: {type(facts[0]).__name__}")
+
+    # facts が文字列リストの場合は dict に変換
+    if facts and isinstance(facts[0], str):
+        print(f"⚠️ factsが文字列形式 → dict変換します")
+        facts = [{"claim": f, "searchQuery": f[:30]} for f in facts if isinstance(f, str)]
+
+    # facts内の各要素がdictであることを確認
+    valid_facts = []
+    for f in facts:
+        if isinstance(f, dict) and f.get("claim"):
+            valid_facts.append(f)
+        elif isinstance(f, str):
+            valid_facts.append({"claim": f, "searchQuery": f[:30]})
+    facts = valid_facts
+
+    # 異常値チェック
+    if len(facts) > 20:
+        print(f"⚠️ 検証対象が多すぎる({len(facts)}件) → 最初の15件のみ使用")
+        facts = facts[:15]
+
     if not facts:
         print("✅ 検証すべき事実なし")
         return article
 
-    print(f"📋 検証対象: {len(facts)}件")
+    print(f"🔍 検証対象: {len(facts)}件")
 
     # FC-2: 1件ずつWeb検索で検証
     print("\n━━━ FC-2: 1件ずつWeb検索で検証 ━━━")
