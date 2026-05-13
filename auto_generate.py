@@ -446,10 +446,10 @@ NBAコアファン向け記事の構成を設計してください。
                         "minItems": 3,
                         "maxItems": 5
                     },
+                    "slug": {"type": "string"},
                     "structure_score": {"type": "integer"}
                 },
-                "required": ["title", "description", "points", "sections",
-                             "summary", "category", "tags", "structure_score"]
+                "required": ["title", "description", "points", "sections", "summary", "category", "tags", "slug", "structure_score"]
             }
         )
 
@@ -797,8 +797,12 @@ def save_article(structure: dict, content: str, score: int) -> str:
     """記事をmarkdownで保存"""
     CONTENT_DIR.mkdir(exist_ok=True)
 
-    article_id = str(random.randint(1000, 9999))
-    filename = f"{TODAY}-{article_id}.md"
+    slug = structure.get("slug", "")
+    if not slug or not re.match(r"^[a-z0-9-]+$", slug) or len(slug) < 3:
+        rand = "".join(__import__("random").choices(__import__("string").ascii_lowercase + __import__("string").digits, k=6))
+        slug = f"insight-{rand}"
+        print(f"⚠️ slug無効のためフォールバック: {slug}")
+    filename = f"{TODAY}-{slug}.md"
     filepath = CONTENT_DIR / filename
 
     if filepath.exists():
@@ -1238,3 +1242,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
