@@ -43,8 +43,11 @@ MODEL_LIGHT = "claude-sonnet-4-6"  # レビュー・FC・トレンド・スコ�
 # ========================================
 # 共通ヘルパー関数
 # ========================================
-def yaml_escape(text: str) -> str:
-    return str(text).replace('"', '\\"')
+def yaml_escape(s) -> str:
+    """YAML文字列のダブルクォートをエスケープ"""
+    if s is None:
+        return ""
+    return str(s).replace('\\', '\\\\').replace('"', '\\"')
 
 
 def call_ai(role: str, prompt: str, schema: dict,
@@ -101,14 +104,14 @@ def call_ai_long(role: str, prompt: str,
             if tools:
                 msg = client.messages.create(
                     model=model,
-                    max_tokens=4096,
+                    max_tokens=8192,
                     tools=tools,
                     messages=[{"role": "user", "content": prompt}]
                 )
             else:
                 msg = client.messages.create(
                     model=model,
-                    max_tokens=4096,
+                    max_tokens=8192,
                     messages=[{"role": "user", "content": prompt}]
                 )
             text = " ".join(
