@@ -959,7 +959,7 @@ NBAコアファン向けnote無料記事のセクションを執筆してくだ�
 - NBAコアファン向けの深い分析・考察を書く
 - バスケ用語はカタカナのまま使用
 - です・ます調
-- 600〜800文字
+- 1500文字
 - {section.get('title', '')} の見出しから始める
 - 最終セクションの末尾に必ず以下を追加：
   「より詳しい分析・最新情報はこちら → https://basketball.trend-insightlab.com」
@@ -1090,7 +1090,10 @@ NBAコアファン向けnote無料記事のセクションを執筆してくだ�
 
     # 保存
     clean_slug = Path(article_path).stem.replace(f"{TODAY}-", "")
-    note_filename = f"{TODAY}-{clean_slug}-note.md"
+    quality_suffix = "-low-quality" if note_score < 60 else ""
+    note_filename = f"{TODAY}-{clean_slug}-note{quality_suffix}.md"
+    if note_score < 60:
+        print(f"⚠️ noteスコア{note_score}点が60点未満 → ファイル名に-low-qualityを付与")
     note_filepath = CONTENT_NOTE_DIR / note_filename
 
     if note_filepath.exists():
@@ -1242,4 +1245,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
