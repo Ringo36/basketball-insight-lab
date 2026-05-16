@@ -503,6 +503,14 @@ def write_article(topic: str, why_hot: str, structure: dict) -> str:
 - 1500文字以上
 - 全て日本語で執筆
 
+【表記ルール】
+- NBA選手名は英語表記のまま使用（例: LeBron James, Stephen Curry）
+- NBAチーム名は英語表記のまま使用（例: Lakers, Warriors, Cavaliers）
+- バスケットボール用語は日本語表記を優先（例: ピック&ロール, ステップバック, アイソレーション）
+- ポジション・スタッツ用語も英語表記（例: PG, SG, PPG, FG%）
+- カタカナ表記は避け、英語のスペルを使う（選手名・チーム名）
+- 日本人選手のみ漢字・カタカナ表記OK（例: 八村塁、河村勇輝）
+
 重要な制約：
 - スタッツを記載する場合は stats.nba.com・ESPN.com/nba・basketball-reference.com を参照すること
 - 確認できたスタッツのみ数値として記載する
@@ -963,7 +971,15 @@ NBAコアファン向けnote無料記事のセクションを執筆してくだ�
 - {section.get('title', '')} の見出しから始める
 - 最終セクションの末尾に必ず以下を追加：
   「より詳しい分析・最新情報はこちら → https://basketball.trend-insightlab.com」
-- 本文のみ出力""",
+- 本文のみ出力
+
+【表記ルール】
+- NBA選手名は英語表記のまま使用（例: LeBron James, Stephen Curry）
+- NBAチーム名は英語表記のまま使用（例: Lakers, Warriors, Cavaliers）
+- バスケットボール用語は日本語表記を優先（例: ピック&ロール, ステップバック, アイソレーション）
+- ポジション・スタッツ用語も英語表記（例: PG, SG, PPG, FG%）
+- カタカナ表記は避け、英語のスペルを使う（選手名・チーム名）
+- 日本人選手のみ漢字・カタカナ表記OK（例: 八村塁、河村勇輝）""",
             model=MODEL_HEAVY
         )
         note_sections.append(text.strip())
