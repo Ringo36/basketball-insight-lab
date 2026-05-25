@@ -20,6 +20,11 @@ export default function RootLayout({ children }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1463566260092039"
+          crossOrigin="anonymous"
+        />
       </head>
       <body>
         <Header />
@@ -60,6 +65,9 @@ function Footer() {
           <a href="/nba">NBA</a>
           <a href="/bleague">Bリーグ</a>
           <a href="/japan">日本人選手</a>
+          <a href="/about">編集部について</a>
+          <a href="/privacy">プライバシーポリシー</a>
+          <a href="/contact">お問い合わせ</a>
         </div>
         <p className="footer-copy">
           © {year} Basketball Insight Lab. AIが届けるバスケットボールインサイト。
